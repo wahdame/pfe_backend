@@ -1,0 +1,19 @@
+{
+  "email": "",
+  "password": "",
+  "test": "",
+  "common": {
+    "base_url": "localhost:5010",
+    "port": 5010
+  },
+  "jwt": {
+    "secret": "pfe-backend-2020",
+    "issuer": "pfe",
+    "audience": "demoaudience"
+  },
+  "database": {
+    "dev": {
+      "url": "mongodb://localhost:27017/pfe-backend-prod-2020"
+    }
+  }
+}
