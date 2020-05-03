@@ -1,97 +1,127 @@
 const mongoose = require("mongoose");
+const validator = require("validator");
 const bcrypt = require("bcryptjs");
-const Schema = mongoose.Schema;
+const jwt = require("jsonwebtoken");
 
-const UserSchema = new Schema({
-  method: {
-    type: String,
-    enum: ["local", "google", "facebook", "users"],
-    default: "local",
-    required: true
-  },
-  local: {
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     email: {
       type: String,
-      lowercase: true
+      unique: true,
+      required: true,
+      trim: true,
+      lowercase: true,
+      validate(value) {
+        if (!validator.isEmail(value)) {
+          throw new Error("Email is invalid!");
+        }
+      },
     },
     password: {
-      type: String
-    }
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 6,
+      validate(value) {
+        if (value.toLowerCase().includes("password")) {
+          throw new Error(
+            'You can not create a password with the word "password".'
+          );
+        }
+      },
+    },
+    age: {
+      type: Number,
+      default: 0,
+      validate(value) {
+        if (value < 0) {
+          throw new Error("Age must be a positive number.");
+        }
+      },
+    },
+    tokens: [
+      {
+        token: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+    avatar: {
+      type: Buffer,
+    },
   },
-  google: {
-    id: {
-      type: String
-    },
-    email: {
-      type: String,
-      lowercase: true
-    }
-  },
-  facebook: {
-    id: {
-      type: String
-    },
-    email: {
-      type: String,
-      lowercase: true
-    }
-  },
-
-  users: {
-    email: {
-      type: String,
-      default: ""
-    },
-
-    firstName: {
-      type: String,
-      default: ""
-    },
-    lastName: {
-      type: String,
-      default: ""
-    },
-    tel: {
-      type: String
-    },
-    location: {
-      type: String
-    },
-    gender: {
-      type: String
-    },
-    image: {
-      type: String
-    },
-    socialLinks: Array,
-    baseJobRole: String
+  {
+    timestamps: true,
   }
+);
+
+userSchema.virtual("tasks", {
+  ref: "Task",
+  localField: "_id",
+  foreignField: "owner",
 });
 
-UserSchema.pre("save", async function(next) {
-  try {
-    if (this.method !== "local") {
-      next();
-    }
-    // Generate a salt
-    const salt = await bcrypt.genSalt(10);
-    // Generate a password hash (salt + hash)
-    const passwordHash = await bcrypt.hash(this.local.password, salt);
-    // Re-assign hashed version over original, plain text password
-    this.local.password = passwordHash;
+userSchema.methods.toJSON = function () {
+  const user = this;
+  const userObject = user.toObject();
 
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
+  delete userObject.password;
+  delete userObject.tokens;
+  delete userObject.avatar;
 
-UserSchema.methods.isValidPassword = async function(newPassword) {
-  try {
-    return await bcrypt.compare(newPassword, this.local.password);
-  } catch (error) {
-    throw new Error(error);
-  }
+  return userObject;
 };
 
-module.exports = User = mongoose.model("User", UserSchema);
+userSchema.statics.findByCredentials = async (email, password) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error("Unable to login!");
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+
+  if (!isMatch) {
+    throw new Error("Unable to login!");
+  }
+
+  return user;
+};
+
+userSchema.methods.generateAuthToken = async function () {
+  const user = this;
+  const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
+
+  user.tokens = user.tokens.concat({ token });
+  await user.save();
+
+  return token;
+};
+//Hash the plain text password before saving
+userSchema.pre("save", async function (next) {
+  const user = this;
+
+  if (user.isModified("password")) {
+    user.password = await bcrypt.hash(user.password, 8);
+  }
+
+  next();
+});
+
+//Delete user tasks when user is removed
+userSchema.pre("remove", async function (next) {
+  const user = this;
+
+  await Task.deleteMany({ owner: user._id });
+
+  next();
+});
+
+const User = mongoose.model("User", userSchema);
+
+module.exports = User;

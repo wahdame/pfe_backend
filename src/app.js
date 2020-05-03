@@ -68,11 +68,11 @@ app.use(bodyParser.json());
 app.use(bodyParser.text());
 // app.use(bodyParser.raw({ type: "*/*" }));
 app.use(cors());
-app.use(
-  bodyParser.urlencoded({
-    extended: false,
-  })
-);
+// app.use(
+//   bodyParser.urlencoded({
+//     extended: false,
+//   })
+// );
 
 app.use("/users", passportJwt, Users);
 app.use("/Auth", Auth);
