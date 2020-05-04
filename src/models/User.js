@@ -55,6 +55,18 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: Buffer,
     },
+
+    auth0Id: { type: String },
+
+    googleId: { type: String },
+
+    facebookId: { type: String },
+
+    permissions: { type: [String] },
+
+    firstName: { type: String },
+
+    type: { type: String },
   },
   {
     timestamps: true,
